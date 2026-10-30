@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>出海易审 (CrossBorder SafeGuard) - 跨境出海合规与安全智能体检中台</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <!-- Header / Navigation Bar -->
+  <header class="navbar">
+    <div class="nav-container">
+      <div class="brand">
+        <div class="brand-icon">🛡️</div>
+        <div class="brand-text">
+          <span class="brand-title">出海易审</span>
+          <span class="brand-sub">CrossBorder SafeGuard</span>
+        </div>
+        <span class="badge badge-primary">GB/T 45654 合规认证</span>
+      </div>
+      <div class="nav-status">
+        <div class="status-indicator">
+          <span class="status-dot"></span>
+          <span class="status-text" id="engine-status">三模协同引擎就绪 (PaddleOCR + RAG + 通义千问)</span>
+        </div>
+        <div class="mode-switch">
+          <label class="switch-label">
+            <input type="checkbox" id="offline-toggle">
+            <span class="slider"></span>
+            <span class="switch-text">离线双轨重放保障</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="main-content">
+    <!-- Hero / Introduction Banner -->
+    <section class="hero-section">
+      <div class="hero-content">
+        <h1>欧盟 GPSR / CE / RoHS 智能合规体检工作台</h1>
+        <p>一站式深度穿透：多模态铭牌要素识别 &bull; 16 部欧盟法规智能溯源 &bull; 4 道全链路安全闸门 &bull; 工业级诊断报告导出</p>
+      </div>
+      <div class="quick-demo-action">
+        <button id="quick-fill-btn" class="btn btn-secondary">
+          ⚡ 载入官方路演演示示例 (儿童拼装积木玩具)
+        </button>
+      </div>
+    </section>
+
+    <!-- 4-Step Audit Wizard -->
+    <section class="audit-wizard" id="audit-wizard">
+      <!-- Step Navigation Indicators -->
+      <div class="wizard-steps-bar">
+        <div class="step-item active" id="step-nav-1">
+          <span class="step-num">1</span>
+          <span class="step-label">商品基础信息</span>
+        </div>
+        <div class="step-divider"></div>
+        <div class="step-item" id="step-nav-2">
+          <span class="step-num">2</span>
+          <span class="step-label">铭牌与包装素材</span>
+        </div>
+        <div class="step-divider"></div>
+        <div class="step-item" id="step-nav-3">
+          <span class="step-num">3</span>
+          <span class="step-label">全链路安全审核</span>
+        </div>
+        <div class="step-divider"></div>
+        <div class="step-item" id="step-nav-4">
+          <span class="step-num">4</span>
+          <span class="step-label">诊断大屏与整改建议</span>
+        </div>
+      </div>
+
+      <!-- Step 1 & 2: Form Input Card -->
+      <div class="wizard-panel card" id="wizard-input-panel">
+        <form id="audit-form">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="product_name">商品名称 <span class="req">*</span></label>
+              <input type="text" id="product_name" name="product_name" class="input-control" placeholder="例如：儿童智能拼装积木玩具" required>
+            </div>
+            <div class="form-group">
+              <label for="category">适用合规类目 <span class="req">*</span></label>
+              <select id="category" name="category" class="input-control">
+                <option value="toys">儿童玩具 (Toy Safety 2009/48/EC & EN 71)</option>
+                <option value="electronics">电子电气 (LVD / EMC / RoHS / RED / 电池)</option>
+                <option value="cosmetics">化妆品与个人护理 (Cosmetics 1223/2009)</option>
+                <option value="general">通用消费品 (GPSR (EU) 2023/988 / 包装环保)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="target_country">目标出海市场 <span class="req">*</span></label>
+              <select id="target_country" name="target_country" class="input-control">
+                <option value="DE">德国 (DE - GPSR & ProdSG 严苛执行国)</option>
+                <option value="FR">法国 (FR - 强制 Triman EPR 环保回收标)</option>
+                <option value="IT">意大利 (IT)</option>
+                <option value="ES">西班牙 (ES)</option>
+                <option value="EU">欧盟全境统一标准 (EU Common)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- File Upload & OCR Text Input -->
+          <div class="upload-section">
+            <label>铭牌/外包装图片 (即审即删，物理覆写粉碎保障安全)</label>
+            <div class="drop-zone" id="drop-zone">
+              <div class="drop-icon">📷</div>
+              <p class="drop-text">点击或拖拽商品包装铭牌图片至此处 (PNG / JPEG / WebP / PDF)</p>
+              <input type="file" id="file-input" name="file" accept="image/png,image/jpeg,image/webp,application/pdf" class="file-hidden">
+              <div id="file-info" class="file-info hidden">
+                <span class="file-name" id="file-name-display"></span>
+                <button type="button" id="remove-file-btn" class="btn-link">清除文件</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: 1rem;">
+            <label for="ocr_text">铭牌文字手动修正 / 快速录入 (选填)</label>
+            <textarea id="ocr_text" name="ocr_text" class="input-control textarea-control" rows="3" placeholder="如未上传图片，可直接粘贴铭牌印刷文字。例如：CE Warning: Not suitable for children under 3 years. EU REP: SafeTrade GmbH..."></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" id="start-audit-btn" class="btn btn-primary btn-lg">
+              🚀 启动 4 闸门三模合规穿透审核
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Step 3: Pipeline Monitoring Progress Panel (Shown during audit) -->
+      <div class="wizard-panel card hidden" id="wizard-progress-panel">
+        <h3 class="panel-title">🛡️ 全链路 4 道 Fail-Closed 安全闸门与三模协同流水线</h3>
+        <p class="panel-desc">高并发秒级响应，执行即时物理销毁、注入拦截、权威法条 RAG 检索与通义千问双轨研判</p>
+
+        <div class="pipeline-progress-list">
+          <div class="pipeline-item" id="pipe-gate1">
+            <div class="pipe-icon">🔍</div>
+            <div class="pipe-content">
+              <div class="pipe-title">闸门①：文件安全与魔数白名单预审</div>
+              <div class="pipe-status">等待处理...</div>
+            </div>
+          </div>
+          <div class="pipeline-item" id="pipe-ocr">
+            <div class="pipe-icon">⚡</div>
+            <div class="pipe-content">
+              <div class="pipe-title">本地 OCR 引擎：多语言合规要素解析与临时文件覆写擦除</div>
+              <div class="pipe-status">等待处理...</div>
+            </div>
+          </div>
+          <div class="pipeline-item" id="pipe-gate2">
+            <div class="pipe-icon">🚫</div>
+            <div class="pipe-content">
+              <div class="pipe-title">闸门②：违禁词敏感黑名单与 SQL/XSS 深度风控</div>
+              <div class="pipe-status">等待处理...</div>
+            </div>
+          </div>
+          <div class="pipeline-item" id="pipe-rag">
+            <div class="pipe-icon">📚</div>
+            <div class="pipe-content">
+              <div class="pipe-title">ChromaDB 向量法规库：16 部权威欧盟法条智能召回</div>
+              <div class="pipe-status">等待处理...</div>
+            </div>
+          </div>
+          <div class="pipeline-item" id="pipe-gate3">
+            <div class="pipe-icon">🛡️</div>
+            <div class="pipe-content">
+              <div class="pipe-title">闸门③：Prompt 越狱阻断与安全上下文隔离封装</div>
+              <div class="pipe-status">等待处理...</div>
+            </div>
+          </div>
+          <div class="pipeline-item" id="pipe-llm">
+            <div class="pipe-icon">🤖</div>
+            <div class="pipe-content">
+              <div class="pipe-title">大模型合规研判：通义千问深度法律诊断 (双轨离线保活)</div>
+              <div class="pipe-status">等待处理...</div>
+            </div>
+          </div>
+          <div class="pipeline-item" id="pipe-gate4">
+            <div class="pipe-icon">🔖</div>
+            <div class="pipe-content">
+              <div class="pipe-title">闸门④：双向密钥防泄露复核与 GB/T 45654 水印打标</div>
+              <div class="pipe-status">等待处理...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 4: Diagnosis Dashboard Results Panel -->
+      <div class="wizard-panel hidden" id="wizard-result-panel">
+        <!-- Top Scorecard Bar -->
+        <div class="results-grid">
+          <!-- Overall Score Card -->
+          <div class="card score-card">
+            <div class="score-header">
+              <h3>合规健康度指数</h3>
+              <span class="risk-badge" id="risk-level-badge">计算中</span>
+            </div>
+            <div class="gauge-container">
+              <div class="gauge-ring" id="gauge-ring">
+                <span class="score-value" id="overall-score-val">0</span>
+                <span class="score-unit">/ 100</span>
+              </div>
+            </div>
+            <div class="defect-counts" id="defect-counts-bar">
+              <div class="count-pill high">高危阻断: <span id="count-high">0</span></div>
+              <div class="count-pill medium">中危警告: <span id="count-medium">0</span></div>
+              <div class="count-pill low">低危建议: <span id="count-low">0</span></div>
+            </div>
+            <div class="card-footer-action">
+              <button id="export-pdf-btn" class="btn btn-success btn-block">
+                📥 导出正式 PDF 合规诊断报告
+              </button>
+            </div>
+          </div>
+
+          <!-- Summary & Highlights -->
+          <div class="card summary-card">
+            <div class="card-title-bar">
+              <h3>📋 综合法律研判结论</h3>
+              <span class="watermark-tag" id="watermark-tag">GB/T 45654 水印核验通过</span>
+            </div>
+            <div class="summary-text" id="report-summary-text">
+              正在生成...
+            </div>
+            <div class="citation-tags" id="citation-tags-container">
+              <!-- Dynamically populated citations -->
+            </div>
+            <div class="audit-meta" id="audit-meta-info">
+              <span>审查编号: <code id="task-id-code">-</code></span>
+              <span>执行耗时: <strong id="elapsed-time-str">0ms</strong></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Before / After Rectification Comparison Table -->
+        <div class="card diff-card">
+          <div class="card-title-bar">
+            <h3>⚖️ 违规缺陷穿透分析与 Before / After 整改示范对照</h3>
+            <span class="text-muted">对标欧盟执法海关抽检标准</span>
+          </div>
+          <div class="table-responsive">
+            <table class="table" id="diff-table">
+              <thead>
+                <tr>
+                  <th style="width: 15%;">缺陷类型与等级</th>
+                  <th style="width: 20%;">法条依据与处罚后果</th>
+                  <th style="width: 30%;" class="th-bad">🔴 现状缺陷 (Before)</th>
+                  <th style="width: 35%;" class="th-good">🟢 合规整改建议 (After)</th>
+                </tr>
+              </thead>
+              <tbody id="diff-table-body">
+                <!-- Dynamically populated -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="results-actions">
+          <button id="re-audit-btn" class="btn btn-outline">
+            🔄 重新提交审核新商品
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Interactive Regulation Citation Drawer Modal -->
+  <div class="modal-overlay hidden" id="citation-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h4 id="modal-reg-title">欧盟法规条文权威溯源</h4>
+        <button id="close-modal-btn" class="modal-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-field">
+          <strong>法规编号与法条：</strong>
+          <span id="modal-reg-id" class="badge badge-secondary"></span>
+        </div>
+        <div class="modal-field">
+          <strong>法条权威原文：</strong>
+          <div class="modal-quote" id="modal-reg-content"></div>
+        </div>
+        <div class="modal-field">
+          <strong>违规处罚与海关通报后果：</strong>
+          <div class="modal-penalty" id="modal-reg-penalty"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-container">
+      <p>出海易审 (CrossBorder SafeGuard) &bull; 全国高校计算机大赛高价值参赛成果</p>
+      <p class="anonymity-note">安全架构设计对标 GB/T 45654、ISO/IEC 42001 &bull; 参赛编号匿名验证已通过</p>
+    </div>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
