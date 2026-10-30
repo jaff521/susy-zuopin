@@ -94,6 +94,9 @@ async def security_headers_middleware(request: Request, call_next):
     return response
 
 
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+
 # Mount API Routes
 app.include_router(api_router)
 
@@ -106,3 +109,11 @@ def health_check():
         "service": "crossborder-safeguard-backend",
         "version": "1.0.0",
     }
+
+
+# -----------------------------------------------------------------------------
+# Single-Port Web Dashboard Static Hosting (Zero CORS)
+# -----------------------------------------------------------------------------
+static_dir = Path(__file__).resolve().parent.parent.parent / "static_web"
+if static_dir.exists():
+    app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static_web")
