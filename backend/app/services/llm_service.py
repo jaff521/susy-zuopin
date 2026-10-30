@@ -235,8 +235,34 @@ class LLMComplianceService:
         system_prompt: str,
         user_prompt: str,
     ) -> str:
-        """Call Aliyun DashScope Generation API via SDK or HTTP compatible client."""
-        # 1. Try official DashScope Python SDK if available
+        """Call Aliyun DashScope Generation API via HTTP compatible client or SDK."""
+        import httpx
+
+        # 1. HTTP Compatible Mode Endpoint via httpx (ultra-fast, ~1.5s latency)
+        url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0.1,
+        }
+
+        try:
+            with httpx.Client(timeout=45.0) as client:
+                resp = client.post(url, headers=headers, json=payload)
+                resp.raise_for_status()
+                res_data = resp.json()
+                return res_data["choices"][0]["message"]["content"]
+        except Exception as http_err:
+            logger.warning(f"DashScope HTTP compatible mode failed ({http_err}), attempting SDK fallback...")
+
+        # 2. Try official DashScope Python SDK if available
         try:
             import dashscope  # type: ignore
             dashscope.api_key = self.api_key
@@ -257,31 +283,8 @@ class LLMComplianceService:
                 raise RuntimeError(
                     f"DashScope SDK returned status {response.status_code}: {response.message}"
                 )
-        except ImportError:
-            pass
-
-        # 2. HTTP Compatible Mode Endpoint via httpx
-        import httpx
-
-        url = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": 0.1,
-        }
-
-        with httpx.Client(timeout=30.0) as client:
-            resp = client.post(url, headers=headers, json=payload)
-            resp.raise_for_status()
-            res_data = resp.json()
-            return res_data["choices"][0]["message"]["content"]
+        except Exception as sdk_err:
+            raise RuntimeError(f"Both DashScope HTTP and SDK calls failed: {sdk_err}")
 
     def _build_system_prompt(self) -> str:
         """Construct authoritative legal expert system prompt with strict anti-injection boundary."""
