@@ -80,7 +80,7 @@ susy-zuopin/
 
 - [ ] **Step 1: 编写依赖清单与环境变量模板**
   在 `backend/requirements.txt` 中写入：
-  `fastapi`, `uvicorn`, `python-multipart`, `pydantic>=2.0`, `sqlalchemy>=2.0`, `pycryptodome`, `python-jose[cryptography]`, `passlib[bcrypt]`, `chromadb>=0.4.0`, `dashscope`, `reportlab`, `pytest`, `httpx`。
+  `fastapi`, `uvicorn`, `python-multipart`, `pydantic>=2.0`, `sqlalchemy>=2.0`, `pycryptodome`, `python-jose[cryptography]`, `passlib[bcrypt]`, `pillow>=10.0`, `chromadb>=0.4.0`, `dashscope`, `reportlab`, `pytest`, `httpx`。
   并在 `backend/.env.example` 中提供无明文 Key 的规范模板（`DASHSCOPE_API_KEY=""`, `SECRET_KEY=""`, `AES_SECRET_KEY=""`）。
 
 - [ ] **Step 2: 编写敏感数据 AES-256 加密与日志脱敏工具的失败测试**
@@ -103,26 +103,29 @@ susy-zuopin/
 
 ---
 
-### Task 2: 25分安全专项：四道内容安全闸门与 Fail-Closed 机制
+### Task 2: 25分安全专项：四道内容安全闸门、令牌桶限流与 Fail-Closed 机制
 
 **Files:**
 - Create: `backend/app/security/gates.py`
+- Create: `backend/app/security/limiter.py`
 - Create: `backend/app/security/auth.py`
 - Test: `backend/tests/test_security_gates.py`
 
-- [ ] **Step 1: 编写四道闸门与 Fail-Closed 机制的测试用例**
+- [ ] **Step 1: 编写四道闸门、令牌桶限流与 Fail-Closed 机制的测试用例**
   编写 `backend/tests/test_security_gates.py`，测试：
   - 闸门①：可执行文件伪装（非允许 MIME/Magic Number）拦截；
   - 闸门②：文本预检敏感词黑名单拦截；
   - 闸门③：Prompt 越狱注入词（如 "Ignore previous instructions", "System override"）识别隔离；
   - 闸门④：大模型输出复审与合规水印注入；
+  - 令牌桶防刷限流（Rate Limiting）：单 IP/用户在滑动窗口内超过频次阈值（如 >10次/分）时触发 HTTP 429 阻断；
   - Fail-Closed 检验：当模拟审核服务异常（抛出 Exception / 降级开关触发）时，系统**坚决拦截**，并返回 `degraded: true`，严禁放行。
 
 - [ ] **Step 2: 运行测试验证失败**
   运行：`pytest backend/tests/test_security_gates.py`，确认测试失败。
 
-- [ ] **Step 3: 实现四道安全闸门与 JWT/防越权逻辑**
+- [ ] **Step 3: 实现四道安全闸门、令牌桶限流器与 JWT/防越权逻辑**
   在 `backend/app/security/gates.py` 中实现 `FileSecurityGate`, `TextBlacklistGate`, `PromptInjectionGate`, `OutputComplianceGate`，并实现带熔断降级标志的 Fail-Closed 处理器；
+  在 `backend/app/security/limiter.py` 中实现内存令牌桶限流器（TokenBucketLimiter）；
   在 `backend/app/security/auth.py` 中实现密码哈希、JWT Token 生成/验证及行级 `user_id` 越权防护依赖。
 
 - [ ] **Step 4: 运行测试验证通过**
@@ -131,7 +134,7 @@ susy-zuopin/
 - [ ] **Step 5: 提交代码**
   ```bash
   git add backend/app/security/ backend/tests/test_security_gates.py
-  git commit -m "feat(security): implement 4-stage fail-closed security gates and auth"
+  git commit -m "feat(security): implement 4-stage fail-closed gates, rate limiter and auth"
   ```
 
 ---
@@ -244,10 +247,19 @@ susy-zuopin/
   运行：`pytest backend/tests/test_pipeline_and_api.py`，确认失败。
 
 - [ ] **Step 3: 实现流水线引擎、PDF 报告导出与 API 路由**
-  - 在 `backend/app/pipeline/engine.py` 中实现完整时序编排与异常熔断处理；
-  - 在 `backend/app/services/pdf_service.py` 中使用 ReportLab 生成排版精美的 PDF 诊断报告（含图表、整改建议表与国标生成式 AI 水印）；
-  - 在 `backend/app/api/routes.py` 中暴露 REST 接口；
-  - 在 `backend/app/main.py` 中初始化 FastAPI 应用并挂载中间件。
+  - 在 `backend/app/pipeline/engine.py` 中实现完整时序编排：
+    1. 闸门①（文件头魔数预审）；
+    2. OCR 抽取结构化信息；
+    3. **即时物理擦除**：调用 `os.unlink` 立即粉碎临时上传图片文件，落实“上传即审即删、杜绝敏感原图滞留”；
+    4. 闸门②（文本预检与黑名单过滤）；
+    5. RAG 知识库检索关联法条；
+    6. 闸门③（Prompt 注入强隔离）；
+    7. 阿里云 Qwen 研判；
+    8. 闸门④（双向内容复核与 GB/T 45654 水印注入）；
+    9. SQLite 租户脱敏落库与审计日志落库。
+  - 在 `backend/app/services/pdf_service.py` 中配置中文字体注册（`pdfmetrics.registerFont(UnicodeCIDFont('STSong-Light'))`），生成排版严谨的 PDF 诊断报告（含合规仪表盘、缺陷明细、整改前后对比表及 AI 合成内容水印）；
+  - 在 `backend/app/api/routes.py` 中使用 `UploadFile` 暴露标准 REST 接口；
+  - 在 `backend/app/main.py` 中初始化 FastAPI 应用，挂载速率限流中间件与安全头。
 
 - [ ] **Step 4: 运行测试验证通过**
   运行：`pytest backend/tests/test_pipeline_and_api.py`，测试全部 PASS。
