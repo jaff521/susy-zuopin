@@ -159,6 +159,43 @@ class TestLLMOfflineDiagnosticReplay:
         defect_ids = [d.id for d in report.defects]
         assert "DEF-COSM-005" in defect_ids  # Missing PAO open jar symbol
 
+    def test_toy_german_export_language_warning_medium_risk_75_score(self, mock_regulations):
+        """Verifies the core competition demo scenario:
+        Toy exported to Germany (DE) with English warnings only missing German warning.
+        Must yield DEF-TOY-LANG-DE, risk_level MEDIUM, and score exactly 75!
+        """
+        service = LLMComplianceService()
+        ocr_result = OCRResult(
+            raw_text=(
+                "SMART ROBOT TOY\n"
+                "CE\n"
+                "EU REP: Apex Compliance GmbH, Berlin, Germany\n"
+                "WARNING: Not suitable for children under 3 years. Choking hazard - small parts.\n"
+                "LOT: LOT-2026-X99"
+            ),
+            eu_rep_info=EURepInfo(found=True, name="Apex Compliance GmbH"),
+            ce_symbol_detected=True,
+            warning_labels=["Not suitable for children under 3 years", "Choking hazard - small parts"]
+        )
+
+        report = service.diagnose_compliance(
+            product_name="智能早教益智玩具",
+            category="toys",
+            target_country="DE",
+            ocr_result=ocr_result,
+            regulations=mock_regulations,
+            force_offline=True
+        )
+
+        assert report.score_overview.overall_score == 75
+        assert report.score_overview.risk_level == RiskLevel.MEDIUM
+        assert report.score_overview.medium_risk_count == 1
+        assert report.score_overview.high_risk_count == 0
+        defect_ids = [d.id for d in report.defects]
+        assert "DEF-TOY-LANG-DE" in defect_ids
+        de_defect = next(d for d in report.defects if d.id == "DEF-TOY-LANG-DE")
+        assert "ACHTUNG" in de_defect.rectification_after.upper()
+
     def test_offline_mode_auto_fallback_with_string_ocr(self, mock_regulations):
         service = LLMComplianceService(api_key="")
         assert service.is_offline_available() is True

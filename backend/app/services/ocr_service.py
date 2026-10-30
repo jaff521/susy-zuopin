@@ -252,10 +252,94 @@ class OCRService:
                     native_result.processing_time_ms = (time.perf_counter() - start_time) * 1000
                     return native_result
             except Exception:
-                pass  # Fall through to offline heuristic engine
+                pass  # Fall through
 
-        # 2. Zero-dependency offline heuristic engine
+        # 2. Try authentic Aliyun DashScope Qwen-VL-OCR Multimodal Vision Model
+        try:
+            cloud_vision_res = self._run_cloud_vision_ocr(image_bytes)
+            if cloud_vision_res and cloud_vision_res.raw_text.strip():
+                cloud_vision_res.processing_time_ms = (time.perf_counter() - start_time) * 1000
+                return cloud_vision_res
+        except Exception:
+            pass
+
+        # 3. Zero-dependency offline heuristic engine
         return self._run_offline_fallback(image_bytes, filename=filename, start_time=start_time)
+
+    def _run_cloud_vision_ocr(self, image_bytes: bytes) -> Optional[OCRResult]:
+        """Execute authentic multimodal vision OCR model via Aliyun DashScope (qwen-vl-ocr)."""
+        import base64
+        import httpx
+
+        api_key = ""
+        try:
+            from app.config import get_settings
+            api_key = getattr(get_settings(), "DASHSCOPE_API_KEY", "")
+        except Exception:
+            pass
+        if not api_key:
+            api_key = os.environ.get("DASHSCOPE_API_KEY", "")
+
+        if not api_key:
+            return None
+
+        # Determine MIME type from magic bytes
+        mime = "image/png"
+        if image_bytes.startswith(b"\xff\xd8\xff"):
+            mime = "image/jpeg"
+        elif image_bytes.startswith(b"GIF8"):
+            mime = "image/gif"
+        elif image_bytes.startswith(b"RIFF") and b"WEBP" in image_bytes[:16]:
+            mime = "image/webp"
+
+        b64_str = base64.b64encode(image_bytes).decode("utf-8")
+        data_uri = f"data:{mime};base64,{b64_str}"
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        body = {
+            "model": "qwen-vl-ocr",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": data_uri}},
+                        {
+                            "type": "text",
+                            "text": (
+                                "你是一个权威出海商品合规铭牌与包装文字识别专家。请逐字识别包装图片中的全部文字内容、"
+                                "标识信息（特别指出是否包含CE标志、WEEE划叉垃圾桶标识）、警示语、生产批次LOT号以及"
+                                "欧盟境内责任人(EU REP / EC REP)的完整名称、物理地址与电子邮箱。请直接输出识别到的完整文本。"
+                            ),
+                        },
+                    ],
+                }
+            ],
+        }
+
+        try:
+            with httpx.Client(timeout=25.0) as client:
+                res = client.post(
+                    "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+                    headers=headers,
+                    json=body,
+                )
+                if res.status_code == 200:
+                    resp_data = res.json()
+                    choices = resp_data.get("choices", [])
+                    if choices:
+                        extracted_text = choices[0].get("message", {}).get("content", "").strip()
+                        if extracted_text:
+                            result = self.extract_from_text(extracted_text)
+                            result.is_fallback = False
+                            result.confidence = 0.98
+                            return result
+        except Exception:
+            return None
+
+        return None
 
     def _run_native_paddle(self, image_bytes: bytes) -> Optional[OCRResult]:
         """Execute PaddleOCR on image bytes."""

@@ -272,9 +272,9 @@ document.addEventListener("DOMContentLoaded", () => {
     stepNav4.classList.add("active");
 
     const report = taskResult.report || {};
-    const overview = report.overview || {};
+    const overview = report.score_overview || report.overview || {};
     const defects = report.defects || [];
-    const citations = report.citations || [];
+    const citations = report.cited_regulations || report.citations || [];
 
     // Cache citations for interactive modal
     cachedRegulations = {};
@@ -283,7 +283,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     // Score & Risk
-    const scoreVal = overview.overall_score !== undefined ? overview.overall_score : 75;
+    const scoreVal = overview.overall_score !== undefined ? overview.overall_score : (taskResult.overall_score !== undefined ? taskResult.overall_score : 75);
     const scoreEl = document.getElementById("overall-score-val");
     scoreEl.textContent = scoreVal;
 
@@ -304,7 +304,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Risk badge
     const riskBadge = document.getElementById("risk-level-badge");
-    const risk = (overview.risk_level || "MEDIUM").toUpperCase();
+    const risk = (overview.risk_level || taskResult.risk_level || "MEDIUM").toUpperCase();
     riskBadge.className = `risk-badge ${risk.toLowerCase()}`;
     riskBadge.textContent = risk === "HIGH" ? "🔴 高危阻断" : (risk === "MEDIUM" ? "🟡 中危警告" : "🟢 低危合规");
 
@@ -313,9 +313,9 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("count-medium").textContent = overview.medium_risk_count !== undefined ? overview.medium_risk_count : 0;
     document.getElementById("count-low").textContent = overview.low_risk_count !== undefined ? overview.low_risk_count : 0;
 
-    // Summary Text & Watermark
-    document.getElementById("report-summary-text").textContent = 
-      report.summary || "综合研判：产品基本符合欧盟通用商品安全规范，但在特定语言警告及欧代完整信息方面存在待整改缺陷。";
+    // Summary Text & Attribution
+    const summaryText = report.summary || (report.ai_attribution_stamp ? `${report.ai_attribution_stamp}：综合研判已生成法定整改对照表。` : "综合研判：已依据欧盟现行法规完成全链路诊断，生成结构化 Before/After 整改建议。");
+    document.getElementById("report-summary-text").textContent = summaryText;
 
     // Meta
     document.getElementById("task-id-code").textContent = taskResult.task_id || "TASK-2026";
@@ -344,26 +344,33 @@ document.addEventListener("DOMContentLoaded", () => {
       defects.forEach(d => {
         const tr = document.createElement("tr");
 
-        const levelClass = (d.severity || "medium").toLowerCase();
-        const levelLabel = levelClass === "high" ? "🔴 高危" : (levelClass === "medium" ? "🟡 中危" : "🟢 建议");
+        const riskLevel = (d.risk_level || d.severity || "medium").toLowerCase();
+        const levelClass = riskLevel;
+        const levelLabel = riskLevel === "high" ? "🔴 高危" : (riskLevel === "medium" ? "🟡 中危" : "🟢 建议");
+
+        const defectName = d.defect_name || d.defect_type || "标签格式缺陷";
+        const basis = d.regulation_citation || d.statutory_basis || "GPSR (EU) 2023/988";
+        const consequence = d.legal_consequence || d.penalty_risk || "海关扣留抽检";
+        const beforeText = d.rectification_before || d.current_defect || "缺少法定欧盟官方语言安全警示语";
+        const afterText = d.rectification_after || d.rectification_advice || "按目标国语言规范完整加贴双语警告标签";
 
         tr.innerHTML = `
           <td>
-            <div class="td-defect-type">${d.defect_type || "标签格式缺陷"}</div>
+            <div class="td-defect-type">${defectName}</div>
             <span class="badge ${levelClass === 'high' ? 'badge-primary' : 'badge-secondary'}" style="margin-top:0.35rem;">${levelLabel}</span>
           </td>
           <td>
-            <div style="font-weight:600; color:#93c5fd;">${d.statutory_basis || "GPSR (EU) 2023/988"}</div>
-            <div class="penalty-quote">处罚后果: ${d.penalty_risk || "海关扣留抽检"}</div>
+            <div style="font-weight:600; color:#93c5fd;">${basis}</div>
+            <div class="penalty-quote">处罚后果: ${consequence}</div>
           </td>
           <td>
             <div class="before-box">
-              ${d.current_defect || "缺少法定欧盟官方语言安全警示语"}
+              ${beforeText}
             </div>
           </td>
           <td>
             <div class="after-box">
-              ${d.rectification_advice || "按目标国语言规范完整加贴双语警告标签"}
+              ${afterText}
             </div>
           </td>
         `;

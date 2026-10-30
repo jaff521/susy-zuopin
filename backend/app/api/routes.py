@@ -18,6 +18,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db.models import ComplianceReport, ComplianceTask, User
 from app.db.session import get_db
 from app.pipeline.engine import CompliancePipelineEngine
@@ -126,8 +127,10 @@ async def create_compliance_task(
     product_name: str = ""
     category: str = "toys"
     target_country: str = "EU"
-    description: str = ""
-    offline_mode: bool = True
+    settings = get_settings()
+    has_api_key = bool(getattr(settings, "DASHSCOPE_API_KEY", ""))
+    default_offline = False if has_api_key else True
+    offline_mode: bool = default_offline
 
     if "application/json" in content_type:
         body = await request.json()
@@ -135,15 +138,21 @@ async def create_compliance_task(
         category = body.get("category", "toys")
         target_country = body.get("target_country", "EU")
         description = body.get("description", "")
-        offline_mode = bool(body.get("offline_mode", True))
+        if "offline_mode" in body:
+            offline_mode = bool(body.get("offline_mode"))
+        else:
+            offline_mode = default_offline
     else:
         form = await request.form()
         product_name = str(form.get("product_name", ""))
         category = str(form.get("category", "toys"))
         target_country = str(form.get("target_country", "EU"))
         description = str(form.get("description", ""))
-        raw_offline = form.get("offline_mode", "true")
-        offline_mode = str(raw_offline).lower() in ("true", "1", "yes")
+        raw_offline = form.get("offline_mode")
+        if raw_offline is not None:
+            offline_mode = str(raw_offline).lower() in ("true", "1", "yes")
+        else:
+            offline_mode = default_offline
 
         file_field = form.get("file")
         if file_field and hasattr(file_field, "read"):

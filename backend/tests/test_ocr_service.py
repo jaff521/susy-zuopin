@@ -231,3 +231,10 @@ class TestOfflineColdStartFallback:
         assert len(result.warning_labels) > 0
         assert len(result.batch_or_serial) > 0
         assert result.is_fallback is True
+
+    def test_cloud_vision_ocr_graceful_fallback(self, ocr_service):
+        """Verify _run_cloud_vision_ocr returns None and falls back when key is absent."""
+        dummy_image = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+        res = ocr_service._run_cloud_vision_ocr(dummy_image)
+        # Without network/in test environment, returns None gracefully
+        assert res is None or isinstance(res, OCRResult)

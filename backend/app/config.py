@@ -19,14 +19,14 @@ class Settings(BaseSettings):
     # Aliyun DashScope LLM
     DASHSCOPE_API_KEY: str = ""
 
-    # Security & Auth
-    SECRET_KEY: str = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
-    AES_SECRET_KEY: str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    # Security & Auth (Zero hardcoded secrets: load from env or generate secure random per instance)
+    SECRET_KEY: str = ""
+    AES_SECRET_KEY: str = ""
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
     # Rate Limiting & Fail-Closed
-    RATE_LIMIT_PER_MINUTE: int = 10
+    RATE_LIMIT_PER_MINUTE: int = 60
     FAIL_CLOSED_ENABLED: bool = True
 
     # Offline / Replay Mode
@@ -34,6 +34,13 @@ class Settings(BaseSettings):
 
     # Debug flag
     DEBUG: bool = False
+
+    def model_post_init(self, __context: object) -> None:
+        import secrets
+        if not self.SECRET_KEY:
+            self.SECRET_KEY = os.environ.get("SECRET_KEY") or secrets.token_hex(32)
+        if not self.AES_SECRET_KEY:
+            self.AES_SECRET_KEY = os.environ.get("AES_SECRET_KEY") or secrets.token_hex(32)
 
 
 @lru_cache()

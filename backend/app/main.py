@@ -46,13 +46,30 @@ app = FastAPI(
 )
 
 # -----------------------------------------------------------------------------
-# CORS Middleware
+# CORS Middleware (OWASP Secure Configuration)
 # -----------------------------------------------------------------------------
+ALLOWED_ORIGINS = [
+    "http://localhost",
+    "http://localhost:80",
+    "http://localhost:8000",
+    "http://localhost:8080",
+    "http://localhost:5173",
+    "http://127.0.0.1",
+    "http://127.0.0.1:80",
+    "http://127.0.0.1:8000",
+    "http://127.0.0.1:8080",
+    "http://127.0.0.1:5173",
+    "http://8.130.79.175",
+    "http://8.130.79.175:80",
+    "http://8.130.79.175:8000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1|8\.130\.79\.175)(:\d+)?$",
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 

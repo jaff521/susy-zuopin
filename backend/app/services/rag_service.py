@@ -459,8 +459,77 @@ class OfflineDeterministicEmbeddingFunction:
         """Calculate cosine similarity between two unit-normalized vectors."""
         if not vec_a or not vec_b:
             return 0.0
-        dot = sum(a * b for a, b in zip(vec_a, vec_b))
-        return max(0.0, min(1.0, (dot + 1.0) / 2.0))
+        min_dim = min(len(vec_a), len(vec_b))
+        if min_dim == 0:
+            return 0.0
+        dot = sum(vec_a[i] * vec_b[i] for i in range(min_dim))
+        norm_a = math.sqrt(sum(x * x for x in vec_a[:min_dim]))
+        norm_b = math.sqrt(sum(y * y for y in vec_b[:min_dim]))
+        if norm_a == 0.0 or norm_b == 0.0:
+            return 0.0
+        cos = dot / (norm_a * norm_b)
+        return max(0.0, min(1.0, (cos + 1.0) / 2.0))
+
+
+class DashScopeEmbeddingFunction:
+    """Production Dense Semantic Vector Embedding using Aliyun DashScope text-embedding-v3 (1024-dim).
+    
+    Provides authentic multi-language regulatory text semantic vectorization.
+    Automatically degrades to deterministic hashing fallback when offline or without API key.
+    """
+
+    def __init__(self, api_key: Optional[str] = None, dim: int = 1024):
+        self.api_key = api_key or os.environ.get("DASHSCOPE_API_KEY", "")
+        self.dim = dim
+        self.model_name = "text-embedding-v3"
+        self._offline_fallback = OfflineDeterministicEmbeddingFunction(dim=128)
+
+    def __call__(self, input: List[str]) -> List[List[float]]:
+        return self.embed_batch(input)
+
+    def embed_text(self, text: str) -> List[float]:
+        """Generate 1024-dim dense embedding for a single string."""
+        if not text:
+            return [0.0] * self.dim
+        res = self.embed_batch([text])
+        if res and len(res) > 0:
+            return res[0]
+        return self._offline_fallback.embed_text(text)
+
+    def embed_batch(self, texts: List[str]) -> List[List[float]]:
+        """Batch vectorize multiple strings using DashScope text-embedding-v3."""
+        if not self.api_key or not texts:
+            return [self._offline_fallback.embed_text(t) for t in texts]
+
+        try:
+            import httpx
+            url = "https://dashscope.aliyuncs.com/compatible-mode/v1/embeddings"
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            }
+            body = {
+                "model": self.model_name,
+                "input": texts,
+                "dimensions": self.dim,
+            }
+            with httpx.Client(timeout=15.0) as client:
+                res = client.post(url, headers=headers, json=body)
+                if res.status_code == 200:
+                    data = res.json().get("data", [])
+                    if data and len(data) == len(texts):
+                        return [item["embedding"] for item in data]
+        except Exception:
+            pass
+
+        return [self._offline_fallback.embed_text(t) for t in texts]
+
+    def tokenize(self, text: str) -> List[Tuple[str, float]]:
+        return self._offline_fallback.tokenize(text)
+
+    @staticmethod
+    def cosine_similarity(vec_a: List[float], vec_b: List[float]) -> float:
+        return OfflineDeterministicEmbeddingFunction.cosine_similarity(vec_a, vec_b)
 
 
 # Alias for backward compatibility
@@ -529,7 +598,21 @@ class RAGService:
             self.persist_directory = self.DEFAULT_DB_PATH
 
         self.persist_directory.mkdir(parents=True, exist_ok=True)
-        self.embedding_fn = OfflineDeterministicEmbeddingFunction(dim=128)
+        try:
+            from app.config import get_settings
+            settings = get_settings()
+            dashscope_key = getattr(settings, "DASHSCOPE_API_KEY", "") or os.environ.get("DASHSCOPE_API_KEY", "")
+            offline_mode = getattr(settings, "OFFLINE_MODE", False)
+        except Exception:
+            dashscope_key = os.environ.get("DASHSCOPE_API_KEY", "")
+            offline_mode = False
+
+        if dashscope_key and not offline_mode:
+            self.embedding_fn = DashScopeEmbeddingFunction(api_key=dashscope_key, dim=1024)
+            self.embedding_engine_name = "DashScope text-embedding-v3 (1024-dim neural dense vector)"
+        else:
+            self.embedding_fn = OfflineDeterministicEmbeddingFunction(dim=128)
+            self.embedding_engine_name = "Offline Deterministic Vector Engine (128-dim)"
 
         self.client = None
         self.collection = None
@@ -697,7 +780,7 @@ class RAGService:
 
             # 1. Dense vector cosine similarity
             emb = rec["embedding"]
-            cos_sim = OfflineDeterministicEmbeddingFunction.cosine_similarity(query_vec, emb)
+            cos_sim = self.embedding_fn.cosine_similarity(query_vec, emb)
 
             # 2. Keyword exact overlap bonus
             doc_lower = (

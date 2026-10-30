@@ -204,3 +204,10 @@ class TestDatabaseModels:
             .first()
         )
         assert found_by_other is None
+
+    def test_settings_zero_hardcoded_secrets_and_dynamic_generation(self):
+        """Verify that Settings does not hardcode static secrets and generates secure keys."""
+        from app.config import Settings
+        s = Settings(_env_file=None)
+        assert len(s.SECRET_KEY) >= 32
+        assert len(s.AES_SECRET_KEY) >= 32

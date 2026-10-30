@@ -205,3 +205,23 @@ class TestSeedDatabaseCompleteness:
             assert len(reg.content) > 10
             assert len(reg.penalty_summary) > 5
             assert reg.category in ("toys", "electronics", "cosmetics", "general")
+
+
+class TestDashScopeDenseEmbeddingFunction:
+    """真实 DashScope text-embedding-v3 稠密向量检索与优雅降级测试."""
+
+    def test_dashscope_embedding_offline_fallback(self):
+        from app.services.rag_service import DashScopeEmbeddingFunction
+        # Without API key or offline, gracefully falls back to deterministic 128-dim
+        fn = DashScopeEmbeddingFunction(api_key="")
+        vec = fn.embed_text("GPSR Article 9 EU REP")
+        assert len(vec) == 128
+        assert any(x != 0.0 for x in vec)
+
+    def test_dashscope_cosine_similarity(self):
+        from app.services.rag_service import DashScopeEmbeddingFunction
+        v1 = [1.0, 0.0, 0.0]
+        v2 = [1.0, 0.0, 0.0]
+        v3 = [-1.0, 0.0, 0.0]
+        assert DashScopeEmbeddingFunction.cosine_similarity(v1, v2) == 1.0
+        assert DashScopeEmbeddingFunction.cosine_similarity(v1, v3) == 0.0
