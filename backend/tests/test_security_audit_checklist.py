@@ -59,7 +59,7 @@ def test_audit_zero_hardcoded_keys():
     pattern = re.compile(r"sk-[a-zA-Z0-9]{20,}")
 
     exclude_dirs = {".git", ".pytest_cache", ".venv", "venv", "__pycache__", "node_modules", "tests"}
-    exclude_files = {".env.example"}
+    exclude_files = {".env.example", ".env"}
 
     leaked = []
     for root, dirs, files in os.walk(repo_root):

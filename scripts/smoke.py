@@ -172,9 +172,9 @@ def check_source_security_keys(target_root: Path = None) -> Tuple[bool, str]:
     # Key leakage regex
     pattern = re.compile(r"sk-[a-zA-Z0-9]{20,}")
 
-    # Exclusions (test suites testing gate interceptions, cache dirs, git)
+    # Exclusions (test suites testing gate interceptions, cache dirs, git, local gitignored env files)
     exclude_dirs = {".git", ".pytest_cache", ".venv", "venv", "__pycache__", "node_modules", "tests"}
-    exclude_files = {".env.example"}
+    exclude_files = {".env.example", ".env"}
 
     leaked_findings = []
 
